@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect x="3" y="3" width="58" height="58" rx="13" fill="#141414"/>
+  <rect x="3" y="3" width="58" height="58" rx="13" fill="none" stroke="#ff5000" stroke-width="3"/>
+  <!-- 快手橙：闪电播放（快手品牌色系） -->
+  <path d="M34 12 L20 36 h9 L26 52 L42 28 h-9 z" fill="#ff5000"/>
+  <path d="M44 16 l-3 8 h6 z" fill="#ffbe00"/>
+  <circle cx="45" cy="45" r="6" fill="none" stroke="#ffbe00" stroke-width="2.5"/>
+  <path d="M43.5 42.5 v5 l4-2.5 z" fill="#ffbe00"/>
+</svg>

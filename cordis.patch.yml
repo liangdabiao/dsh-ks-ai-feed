@@ -1,0 +1,5 @@
+# AI 快手日报：ks_ai 工具（多关键词批量/六步聚类/情报洞察/HTML）+ ks-ai-feed 技能 + 侧栏看板。
+# 浏览器半边由 dsh.client 声明加载。
+- insert:
+    - id: ks-ai-feed
+      name: 'dsh-ks-ai-feed'
