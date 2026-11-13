@@ -1,4 +1,4 @@
-// AI 快手日报 · Host 半边（ks_ai 原生工具 + 技能提供方 + 固定输出格式注入 + 面板数据面）。
+// 快手爆款日报 · Host 半边（ks_ai 原生工具 + 技能提供方 + 固定输出格式注入 + 面板数据面）。
 // 抓取/聚类/情报洞察/HTML 是纯数据操作由工具完成；深度调查与解读由会话模型按技能完成。
 import Schema from '@deepseek-ai/schemastery'
 import { join, dirname } from 'node:path'
@@ -18,7 +18,7 @@ export const name = 'ks-ai-feed' // = cordis.patch.yml 的 id
 export const inject = ['tools', 'skills', 'systemPrompt', 'webServer', 'connection']
 
 export const Config = Schema.object({
-  injectRules: Schema.boolean().default(true).description('注入 AI 快手日报工作流到系统提示'),
+  injectRules: Schema.boolean().default(true).description('注入 快手爆款日报工作流到系统提示'),
   apiKey: Schema.string().default('').description('RedFox API Key（ak_ 开头；留空读面板设置或环境变量 REDFOX_API_KEY）'),
   proxyUrl: Schema.string().default('').description('HTTP(S) 代理（访问 redfox.hk 用），留空直连'),
   defaultKeywords: Schema.string().default('AI,人工智能,大模型,GPT,Agent,AI绘画,AI教程').description('默认关键词（逗号分隔）'),
@@ -85,7 +85,7 @@ function resolveReport(rid) {
 export const ksAiTool = {
   name: 'ks_ai',
   description:
-    'AI 快手日报：多关键词批量扫描快手 AI 创作内容（默认 7 关键词一次请求，减少 85%+ API 调用），' +
+    '快手爆款日报：多关键词批量扫描快手 AI 创作内容（默认 7 关键词一次请求，减少 85%+ API 调用），' +
     '按播放量筛选爆款、type/topic 六步智能聚类（泛标签过滤+标题关键词拆分+保底 5 分类），生成深色主题 HTML 日报与 AI 情报洞察（热度TOP话题/起量信号/核心达人/推荐调查方向/跨平台对比）。' +
     '每日 15 点更新前一天数据；固定输出格式（分类概览+情报洞察）必须完整输出。需要 RedFox API Key。',
   parameters: {
@@ -113,7 +113,7 @@ export const ksAiTool = {
       const settings = getSettings()
       const apiKey = resolveApiKey({ settings, config: cfg })
       if (!apiKey) {
-        return result(false, '未配置 RedFox API Key。请用户到面板「AI 快手日报 → 设置」填入，或在插件配置/环境变量 REDFOX_API_KEY 里配置（获取：https://www.redfox.hk/login）。')
+        return result(false, '未配置 RedFox API Key。请用户到面板「快手爆款日报 → 设置」填入，或在插件配置/环境变量 REDFOX_API_KEY 里配置（获取：https://www.redfox.hk/login）。')
       }
       const fallback = parseKeywords(cfg.defaultKeywords, DEFAULT_KEYWORDS)
       const keywords = parseKeywords(args.keywords, fallback)
@@ -138,11 +138,11 @@ export const ksAiTool = {
           `未获取到任何作品（关键词组「${keywords.join(',')}」，日期 ${date}）。如实告知用户并建议换关键词或日期，不要编造。`,
           `15 点规则：${date}（${new Date().getHours() >= 15 ? '已过15:00 查昨日' : '未过15:00 查前天'}）`)
       }
-      // 固定输出格式（上游强制规范：分类概览 + AI情报洞察）
+      // 固定输出格式（上游强制规范：分类概览 + 情报洞察）
       const overview = renderCategoryOverview(clusters, articles.length)
       const intelText = renderIntelligenceText(briefing)
       const data = [
-        `## AI快手信息源 · ${date} 日报`,
+        `## 快手爆款日报 · ${date} 日报`,
         '',
         `**扫描 ${articles.length} 条热门视频，聚类 ${clusters.length} 个分类**`,
         '',
@@ -150,7 +150,7 @@ export const ksAiTool = {
         '',
         overview,
         '',
-        '### AI情报洞察报告',
+        '### 情报洞察报告',
         '',
         intelText,
       ].join('\n')
@@ -196,16 +196,19 @@ export const ksAiTool = {
       const html = generateReport(clusters, raw || [], meta.date, briefing)
       const file = saveReportHtml(meta.report_id, html)
       return result(true,
-        `HTML 日报已生成：${file}。面板可直接查看（深色主题，封面图+互动数据+视频直链+情报洞察）；向用户输出文件路径。`,
-        `报告文件: ${file}`)
+        `HTML 日报已生成：${file}。` +
+        '桌面端 WebContentsView 会 deny window.open/target=_blank，日报只能在面板内查看——' +
+        '告诉用户点侧栏「快手爆款日报」→「报告」页（或该日报页）的「打开 HTML 日报」，' +
+        '不要把磁盘路径当成可点开的入口。',
+        `报告文件: ${file}\n面板入口: 侧栏「快手爆款日报」→「报告」→「打开日报」`)
     }
 
     // ── history ──────────────────────────────────────────────────────────
     if (args.action === 'history') {
       const list = listReports({ limit: 20 })
       if (!list.length) return result(false, '还没有日报。先 fetch。')
-      const lines = list.map((r) => `${r.report_id}｜「${(r.keywords || []).join(',')}」${r.date}｜${r.total} 条 / ${r.topic_count} 分类`)
-      return result(true, `共 ${list.length} 份日报（新→旧）。对旧日报补 HTML/读明细传 reportId。`, lines.join('\n'))
+      const lines = list.map((r) => `${r.report_id}｜「${(r.keywords || []).join(',')}」${r.date}｜${r.total} 条 / ${r.topic_count} 分类${r.has_report ? '｜有报告' : ''}`)
+      return result(true, `共 ${list.length} 份日报（新→旧，标「有报告」的可直接打开；入口：面板「报告」页）。对旧日报补 HTML/读明细传 reportId。`, lines.join('\n'))
     }
 
     throw new Error(`未知 action：${args.action}`)

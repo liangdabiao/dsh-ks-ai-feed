@@ -1,6 +1,6 @@
 // ============================================================================
-// AI 快手日报 · 浏览器半边
-//   - 侧栏加「AI 快手日报」入口，主区域是插件页面（/ks-ai-feed/，iframe）
+// 快手爆款日报 · 浏览器半边
+//   - 侧栏加「快手爆款日报」入口，主区域是插件页面（/ks-ai-feed/，iframe）
 //   - 页面发 ks-ai-feed:refresh：postMessage 一段草稿，这里开新对话并填进输入框（不自动发送）
 //   - 明暗跟随 dsh 主题
 //
@@ -58,7 +58,7 @@ function apply(ctx) {
     return h('iframe', {
       ref,
       src: SRC,
-      title: 'AI 快手日报',
+      title: '快手爆款日报',
       allow: 'fullscreen',
       onLoad: (e) => post(e.currentTarget),
       style: { width: '100%', height: '100%', border: 0, display: 'block' },
@@ -66,7 +66,7 @@ function apply(ctx) {
   }
 
   ctx.slots.inject('sidebar.panellist', () =>
-    ctx.slots.register({ name: 'sidebar.panellist', id: PANEL, order: 15, label: () => 'AI 快手日报' }, PanelIcon))
+    ctx.slots.register({ name: 'sidebar.panellist', id: PANEL, order: 15, label: () => '快手爆款日报' }, PanelIcon))
   ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: PANEL }, Cn30Panel))
 }
 

@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Kuaishou AI Daily",
-    "description": "Multi-keyword batch scan of Kuaishou AI content: 15:00 date rule, six-step clustering, intel insights (hot topics / emerging signals / key creators / investigation directions), dark-themed HTML daily. Requires a RedFox API key."
+    "title": "Kuaishou Viral Daily",
+    "description": "Kuaishou viral daily: multi-keyword batch scan of hot Kuaishou works (AI word list by default, any keyword supported), 15:00 date rule, six-step clustering, intel insights, dark-themed HTML daily. Requires a RedFox API key."
   }
 }

@@ -50,7 +50,7 @@ test('report：深色模板填充（奖牌/情报洞察/无泄漏）', () => {
   const clusters = clusterArticles(notes)
   const briefing = generateIntelligenceBriefing(clusters, notes)
   const html = generateReport(clusters, notes, '2026-11-11', briefing)
-  assert.ok(html.includes('AI快手信息源'))
+  assert.ok(html.includes('快手爆款日报'))
   assert.ok(html.includes('category-card') && html.includes('🥇'))
   assert.ok(html.includes('intel-rank-topic') && html.includes('起量信号'))
   assert.ok(html.includes('快手作品0'))
@@ -129,7 +129,7 @@ test('host 工具：fetch/clusters/insights/html/history + 3107 + 无 key', asyn
 
   {
     const r = await call({ action: 'fetch', keywords: 'AI教程,AI绘画', count: 12 })
-    check('fetch 固定输出', r.ok && r.data.includes('分类概览') && r.data.includes('AI情报洞察报告'), (r.data || '').slice(0, 100))
+    check('fetch 固定输出', r.ok && r.data.includes('分类概览') && r.data.includes('情报洞察报告'), (r.data || '').slice(0, 100))
     check('fetch 情报 4 模块', r.data.includes('一、新兴起量信号') && r.data.includes('二、核心达人') && r.data.includes('三、推荐调查方向') && r.data.includes('四、跨平台对比建议'), '')
     check('fetch 15 点规则', r.summary.includes('数据日期'), r.summary.slice(0, 60))
     check('fetch keywords 数组批量', true, '')
@@ -148,7 +148,7 @@ test('host 工具：fetch/clusters/insights/html/history + 3107 + 无 key', asyn
     check('html 生成', r.ok && r.summary.includes('.html'), r.summary.slice(0, 50))
     const file = r.summary.match(/：(.+?\.html)/)?.[1]
     const html = readFileSync(file, 'utf8')
-    assert.ok(html.includes('AI快手信息源'))
+    assert.ok(html.includes('快手爆款日报'))
     assert.ok(html.includes('intel-rank-topic'))
     assert.ok(!html.includes('{{DATE}}'))
     check('html 可读', true, '')

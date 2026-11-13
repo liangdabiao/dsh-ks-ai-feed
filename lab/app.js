@@ -1,11 +1,11 @@
-// AI 快手日报 · 面板逻辑：概览（关键词组查询+历史）/ 日报页（分类卡片+情报洞察）/ 设置。
+// 快手爆款日报 · 面板逻辑：概览（关键词组查询+历史）/ 日报页（分类卡片+情报洞察）/ 设置。
 // 深度调查与解读走 agent 对话；面板直连 API 查询/看日报/生成 HTML。
 (() => {
   const $app = document.getElementById('app')
   const $toast = document.getElementById('toast')
   const EMBEDDED = (() => { try { return window.parent !== window } catch { return false } })()
 
-  const state = { catalog: null }
+  const state = { catalog: null, hasReport: false }
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
   const fmt = (n) => {
     if (n === null || n === undefined) return '0'
@@ -52,6 +52,150 @@
       () => toast(`${reason}，复制也失败了`, true))
   }
 
+  // 报告是否存在：宿主新版在 meta/listReports 带 has_report；宿主未重启时用 HEAD 探测兜底。
+  // 桌面端 WebContentsView 把 window.open/target=_blank 全部 deny，日报只能在面板内看，
+  // 所以「有没有报告」必须自己判断，不能靠点按钮弹新窗口。
+  async function hasReportFile(id) {
+    try {
+      const res = await fetch(`/ks-ai-feed/api/reports/${encodeURIComponent(id)}/report`, { method: 'HEAD', cache: 'no-store' })
+      return res.ok
+    } catch { return false }
+  }
+
+  const reportById = (id) => (state.catalog?.reports || []).find((r) => r.report_id === id)
+  const reportLabel = (id) => {
+    const r = reportById(id)
+    return r ? `「${(r.keywords || []).join(',')}」· ${r.date}` : '快手爆款日报'
+  }
+
+  // 打开外部链接：桌面端 iframe 里 window.open 会被 WebContentsView deny，
+  // 先请宿主用系统默认浏览器打开；宿主不支持（网页版/无桌面）时退回新窗口。
+  async function openLink(u) {
+    if (!u || u === '#' || u === 'about:blank') return
+    try {
+      const r = await apiPost('/api/open', { url: u })
+      if (r?.ok) { toast('已在系统浏览器打开'); return }
+      throw new Error(r?.error || '打开失败')
+    } catch (e) {
+      const win = window.open(u, '_blank', 'noopener')
+      if (!win) {
+        const hint = /404|not found/i.test(String(e.message))
+          ? '宿主还没重启（/api/open 未上线），重启 dsh 后就能用系统浏览器打开'
+          : e.message
+        toast(`链接打不开：${hint}`, true)
+      }
+    }
+  }
+
+  // ---------- 日报查看器（面板内覆盖层） ----------
+  // 桌面端 dsh-app 协议的 WebContentsView 把 window.open / target=_blank 全部 deny，
+  // 所以日报不能用新窗口打开：fetch 同源 HTML → iframe.srcdoc 在面板里显示。
+  async function openReportView(id, label) {
+    document.getElementById('report-view')?.remove()
+    const el = document.createElement('div')
+    el.id = 'report-view'
+    el.className = 'report-view'
+    el.innerHTML = `
+      <div class="rv-panel" role="dialog" aria-modal="true" aria-label="HTML 日报">
+        <div class="rv-bar">
+          <div class="rv-title">${ic('file')}<span>${esc(label || reportLabel(id))}</span></div>
+          <div class="rv-actions">
+            <button class="btn ghost" id="rv-reload">重新载入</button>
+            <button class="btn ghost" id="rv-close">关闭</button>
+          </div>
+        </div>
+        <div class="rv-body"><div class="loading">LOADING…</div></div>
+      </div>`
+    document.body.appendChild(el)
+    const body = el.querySelector('.rv-body')
+    const onKey = (e) => { if (e.key === 'Escape') close() }
+    function close() {
+      removeEventListener('keydown', onKey)
+      el.remove()
+    }
+    addEventListener('keydown', onKey)
+    el.querySelector('#rv-close').onclick = close
+    el.addEventListener('click', (e) => { if (e.target === el) close() })
+
+    const paint = async () => {
+      body.innerHTML = '<div class="loading">LOADING…</div>'
+      try {
+        const res = await fetch(`/ks-ai-feed/api/reports/${encodeURIComponent(id)}/report`, { cache: 'no-store' })
+        if (!res.ok) {
+          const detail = await res.json().catch(() => ({}))
+          throw new Error(detail.error || `HTTP ${res.status}`)
+        }
+        const html = await res.text()
+        const frame = document.createElement('iframe')
+        frame.className = 'rv-frame'
+        frame.title = 'HTML 日报'
+        frame.srcdoc = html // 日报自带深色主题；外链补丁已在服务端注入
+        body.innerHTML = ''
+        body.appendChild(frame)
+      } catch (e) {
+        body.innerHTML = `<div class="empty"><div class="e-title">日报打不开</div><p>${esc(e.message)}</p><p>先点「生成 HTML 日报」，或在对话里让 agent 跑 ks_ai(action="html")。</p></div>`
+      }
+    }
+    el.querySelector('#rv-reload').onclick = paint
+    await paint()
+  }
+
+  // 生成（或按已入库数据重生成）日报后立刻在面板里打开
+  async function generateReport(id, btn) {
+    if (btn) btn.disabled = true
+    try {
+      await apiPost(`/api/reports/${encodeURIComponent(id)}/report`)
+      toast('HTML 日报已生成')
+      await openReportView(id)
+      bindReportSlots()
+    } catch (e) {
+      toast(e.message, true)
+    } finally {
+      if (btn) btn.disabled = false
+    }
+  }
+
+  // 报告入口槽位：概览卡片 / 报告库共用。有报告 → 「打开日报」，报告库页无报告 → 「生成日报」
+  function fillReportSlot(slot, id, exists) {
+    slot.innerHTML = ''
+    const mk = (cls, text, onClick) => {
+      const b = document.createElement('button')
+      b.className = cls
+      b.type = 'button'
+      b.textContent = text
+      b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); onClick(b) }
+      slot.appendChild(b)
+      return b
+    }
+    if (exists) return mk('chip act', '📄 打开日报', () => openReportView(id))
+    if (slot.dataset.reportGen) return mk('chip act gen', '＋ 生成日报', (b) => generateReport(id, b))
+    return null
+  }
+
+  async function bindReportSlots() {
+    const slots = [...document.querySelectorAll('[data-report-slot]')]
+    await Promise.all(slots.map(async (slot) => {
+      const id = slot.dataset.reportSlot
+      const known = typeof reportById(id)?.has_report === 'boolean' ? reportById(id).has_report : await hasReportFile(id)
+      fillReportSlot(slot, id, known)
+    }))
+  }
+
+  // rail 导航图标：index.html 里只放了 <i data-icon> 占位，这里填成 svg（否则导航图标是空的）
+  function paintNavIcons() {
+    document.querySelectorAll('[data-icon]').forEach((el) => { el.outerHTML = ic(el.dataset.icon) })
+  }
+
+  // 作品标题的可点绑定：日报页 DOM 是 renderReport 异步填的，填完要再绑一次
+  function bindOpenLinks() {
+    document.querySelectorAll('[data-open-link]').forEach((el) => {
+      if (el.dataset.bound) return
+      el.dataset.bound = '1'
+      el.onclick = (e) => { e.preventDefault(); e.stopPropagation(); openLink(el.dataset.openLink) }
+      el.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openLink(el.dataset.openLink) } }
+    })
+  }
+
   const ICONS = {
     home: '<path d="M4 11l8-7 8 7"/><path d="M6 9.5V20h12V9.5"/>',
     gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
@@ -60,6 +204,7 @@
     ext: '<path d="M14 5h5v5"/><path d="M19 5l-8 8"/><path d="M18 14v5H5V6h5"/>',
     back: '<path d="M14 6l-6 6 6 6"/>',
     play: '<path d="M8 5l11 7-11 7V5z"/>',
+    file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',
   }
   const ic = (name, cls = 'ic') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg>`
 
@@ -107,7 +252,7 @@
       <header class="head">
         <span class="eyebrow">KUAISHOU AI DAILY</span>
         <div class="head-row">
-          <h1>AI 快手<strong>日报</strong></h1>
+          <h1>快手<strong>爆款日报</strong></h1>
         </div>
         <p>多关键词批量扫描快手 AI 创作内容，按播放量筛选爆款、六步智能聚类，含情报洞察（热度TOP/起量信号/核心达人/调查方向）。数据每日 15 点更新前一天（最新可查 ${esc(c.latest_available_date?.date || '—')}）。RedFox API Key ${c.has_key ? '已配置' : '未配置'}。</p>
       </header>
@@ -134,15 +279,46 @@
       <section class="sec">
         <div class="sec-head"><span class="num">02</span><h2>日报历史</h2></div>
         ${reports.length ? `<div class="cards">${reports.map((r) => `
-          <a class="card" href="#/r/${encodeURIComponent(r.report_id)}">
+          <div class="card" data-report-card="${esc(r.report_id)}" role="button" tabindex="0">
             <div class="c-top">
               <div class="c-title">「${esc((r.keywords || []).join(','))}」</div>
               <span class="chip done">${r.total} 条</span>
             </div>
             <div class="c-sub">${r.topic_count} 个分类 · 数据日期 ${esc(r.date)}</div>
-            <div class="c-foot"><span>${esc(String(r.created_at).slice(0, 16).replace('T', ' '))}</span></div>
-          </a>`).join('')}</div>`
+            <div class="c-foot">
+              <span>${esc(String(r.created_at).slice(0, 16).replace('T', ' '))}</span>
+              <span data-report-slot="${esc(r.report_id)}"></span>
+            </div>
+          </div>`).join('')}</div>`
         : `<div class="empty"><div class="e-title">还没有日报</div><p>点「生成日报」；或「去对话深度调查」让 agent 抓取并基于情报洞察做深度分析。</p></div>`}
+      </section>`
+  }
+
+  // ---------- 视图：报告库 ----------
+  // 给「生成到磁盘的 report.html」一个固定入口：rail「报告」页 + 每份日报卡片上的槽位
+  function viewReports() {
+    const reports = state.catalog?.reports || []
+    return `
+      <header class="head">
+        <span class="eyebrow">REPORTS</span>
+        <div class="head-row"><h1>报告<strong>库</strong></h1></div>
+        <p>对话里生成的深色 HTML 日报都落在这里，点「打开日报」在面板内直接查看（桌面端不支持弹出新窗口；日报里的作品链接会交给系统浏览器）。</p>
+      </header>
+      <section class="sec" style="margin-top:0">
+        <div class="sec-head"><span class="num">01</span><h2>日报报告</h2></div>
+        ${reports.length ? `<div class="cards">${reports.map((r) => `
+          <div class="card" data-report-card="${esc(r.report_id)}" role="button" tabindex="0">
+            <div class="c-top">
+              <div class="c-title">「${esc((r.keywords || []).join(','))}」</div>
+              <span class="chip done">${r.total} 条</span>
+            </div>
+            <div class="c-sub">${r.topic_count} 个分类 · 数据日期 ${esc(r.date)}</div>
+            <div class="c-foot">
+              <span>${esc(String(r.created_at).slice(0, 16).replace('T', ' '))}</span>
+              <span data-report-slot="${esc(r.report_id)}" data-report-gen="1" class="slot"></span>
+            </div>
+          </div>`).join('')}</div>`
+        : `<div class="empty"><div class="e-title">还没有日报</div><p>去「概览」点「生成日报」，或在对话里 fetch 一次，报告就有了。</p></div>`}
       </section>`
   }
 
@@ -157,7 +333,7 @@
         <div class="ditem">
           ${cover}
           <div class="d-info">
-            <div class="d-title">${url ? `<a href="${esc(url)}" target="_blank" rel="noreferrer">${esc(a.title || '无标题')}</a>` : esc(a.title || '无标题')}</div>
+            <div class="d-title">${url ? `<span data-open-link="${esc(url)}" role="button" tabindex="0">${esc(a.title || '无标题')}</span>` : esc(a.title || '无标题')}</div>
             <div class="d-meta">
               <span>${esc(a.userName || '-')}</span>
               <span class="d-metrics"><span>👍 ${fmt(a.likeCount)}</span><span>🔄 ${fmt(a.shareCount)}</span><span>💬 ${fmt(a.commentCount)}</span></span>
@@ -210,6 +386,8 @@
     }
     const meta = data.report
     const clusters = data.clusters || []
+    // 宿主没重启时 meta.has_report 还不存在 → HEAD 探测兜底，保证「打开日报」入口一定出现
+    const hasReport = typeof meta.has_report === 'boolean' ? meta.has_report : await hasReportFile(id)
     holder.innerHTML = `
       <a class="back" href="#/">${ic('back')} 概览</a>
       <div class="detail-head">
@@ -217,11 +395,7 @@
           <h1>「${esc((meta.keywords || []).join(','))}」</h1>
           <div class="c-sub" style="margin-top:4px">${meta.total} 条视频 · ${meta.topic_count} 个分类 · 数据日期 ${esc(meta.date)} · 总点赞 ${fmt(meta.total_likes)}${meta.avg_reads ? ` · 平均播放 ${fmt(meta.avg_reads)}` : ''} · 头号作者 ${esc(meta.top_author || '—')}</div>
         </div>
-        <div class="actions">
-          <button class="btn accent" id="r-html">${ic('ext')}生成 HTML 日报</button>
-          <button class="btn ghost" data-analyze="${esc(id)}">${ic('spark')}去对话深度调查</button>
-          <button class="btn ghost" data-del-report="${esc(id)}" title="删除日报">${ic('trash')}</button>
-        </div>
+        <div class="actions" id="r-actions">${actionsHtml(id, hasReport)}</div>
       </div>
       ${clusters.length ? `<div class="dcards">${clusters.map((c, i) => clusterCard(c, i)).join('')}</div>
       <div class="sec" style="margin-top:var(--sp-8)">
@@ -229,19 +403,33 @@
         ${intelBlocks(data.briefing)}
       </div>`
       : '<div class="empty"><div class="e-title">该日报没有作品</div><p>换关键词或日期重新生成。</p></div>'}`
+    state.hasReport = hasReport
     bindReport(id, meta)
   }
 
+  function actionsHtml(id, hasReport) {
+    const report = hasReport
+      ? `<button class="btn accent" data-open-report="${esc(id)}">${ic('file')}打开 HTML 日报</button>
+         <button class="btn ghost" data-gen-report="${esc(id)}">重新生成</button>`
+      : `<button class="btn accent" data-gen-report="${esc(id)}">${ic('play')}生成 HTML 日报</button>`
+    return `${report}
+      <button class="btn ghost" data-analyze="${esc(id)}">${ic('spark')}去对话深度调查</button>
+      <button class="btn ghost" data-del-report="${esc(id)}" title="删除日报">${ic('trash')}</button>`
+  }
+
   function bindReport(id, meta) {
-    const htmlBtn = document.getElementById('r-html')
-    if (htmlBtn) htmlBtn.onclick = async () => {
-      htmlBtn.disabled = true
-      try {
-        await apiPost(`/api/reports/${encodeURIComponent(id)}/report`)
-        toast('HTML 日报已生成')
-        window.open(`/ks-ai-feed/api/reports/${encodeURIComponent(id)}/report`, '_blank')
-      } catch (e) { toast(e.message, true) }
-      htmlBtn.disabled = false
+    bindOpenLinks()
+    const openBtn = document.querySelector('[data-open-report]')
+    if (openBtn) openBtn.onclick = () => openReportView(id)
+    const genBtn = document.querySelector('[data-gen-report]')
+    if (genBtn) genBtn.onclick = async () => {
+      await generateReport(id, genBtn)
+      state.hasReport = true
+      const box = document.getElementById('r-actions')
+      if (box) {
+        box.innerHTML = actionsHtml(id, true)
+        bindReport(id, meta)
+      }
     }
     const del = document.querySelector('[data-del-report]')
     if (del) del.onclick = async () => {
@@ -251,7 +439,7 @@
     const analyze = document.querySelector('[data-analyze]')
     if (analyze) analyze.onclick = () => {
       sendAgentPrompt([
-        `请基于 AI 快手日报（${meta.report_id}，关键词「${(meta.keywords || []).join(',')}」，${meta.date}）做深度调查分析：`,
+        `请基于 快手爆款日报（${meta.report_id}，关键词「${(meta.keywords || []).join(',')}」，${meta.date}）做深度调查分析：`,
         `1. ks_ai(action="clusters", reportId="${meta.report_id}", perCluster=10) 读全部分类作品`,
         '2. 按 ks-ai-feed 技能输出：分类概览表 + 情报洞察 4 模块（完整输出不可省略），并对热度TOP话题做深度调查（用推荐调查方向里的场景+引擎组合+关键词）',
         `3. ks_ai(action="html", reportId="${meta.report_id}") 生成深色 HTML 日报给我文件路径。`,
@@ -334,9 +522,22 @@
 
   // ---------- 渲染辅助 ----------
   function bindCommon() {
+    // 日报卡片：点卡片进日报页；卡片内的「打开日报 / 生成日报」按钮不触发跳转
+    document.querySelectorAll('[data-report-card]').forEach((card) => {
+      const go = () => { location.hash = `#/r/${encodeURIComponent(card.dataset.reportCard)}` }
+      card.onclick = (e) => { if (e.target.closest('button, a, [data-open-link]')) return; go() }
+      card.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go() } }
+    })
+    // 面板里的外链一律交给系统浏览器（桌面端 <a target="_blank"> 同样会被 deny）
+    document.querySelectorAll('a[target="_blank"]').forEach((a) => {
+      a.onclick = (e) => { e.preventDefault(); e.stopPropagation(); openLink(a.getAttribute('href')) }
+    })
+    // 作品标题：点开快手原文（走宿主系统浏览器）
+    bindOpenLinks()
+    bindReportSlots()
     document.querySelectorAll('[data-newflow]').forEach((b) => {
       b.onclick = () => sendAgentPrompt([
-        '请做一次快手 AI 内容深度调查（AI 快手日报）：',
+        '请做一次快手 AI 内容深度调查（快手爆款日报）：',
         `1. ks_ai(action="fetch", keywords="${esc((state.catalog?.default_keywords || []).join(','))}", count=200) 生成今日日报（15 点规则自动判断日期）`,
         '2. 按 ks-ai-feed 技能输出固定格式：分类概览表 + 情报洞察 4 模块（完整输出不可省略）',
         '3. 对热度TOP话题做深度调查（用情报洞察里的推荐调查方向：场景+引擎组合+关键词）',
@@ -365,8 +566,8 @@
     const hash = location.hash || '#/'
     const mr = hash.match(/^#\/r\/(.+)$/)
     const rid = mr ? decodeURIComponent(mr[1]) : null
+    const cur = rid ? '' : hash === '#/' ? 'home' : hash.startsWith('#/settings') ? 'settings' : hash.startsWith('#/reports') ? 'reports' : 'home'
     document.querySelectorAll('.nav a').forEach((a) => {
-      const cur = rid ? '' : hash === '#/' ? 'home' : hash.startsWith('#/settings') ? 'settings' : 'home'
       a.classList.toggle('on', a.dataset.view === cur)
     })
     if (rid && /^[\p{L}\p{N}_-]+$/u.test(rid)) {
@@ -376,6 +577,7 @@
       return
     }
     if (hash.startsWith('#/settings')) { $app.innerHTML = viewSettings(); bindCommon(); bindSettings(); return }
+    if (hash.startsWith('#/reports')) { $app.innerHTML = viewReports(); bindCommon(); bindReportSlots(); return }
     $app.innerHTML = viewHome()
     bindCommon()
   }
@@ -384,8 +586,15 @@
     try { await loadCatalog() } catch {
       state.catalog = { version: '-', has_key: false, key_source: 'none', default_keywords: [], reports: [], settings: {}, latest_available_date: {} }
     }
+    paintNavIcons()
     render().catch(() => {})
   }
+  // 日报 iframe 里的链接点击会 postMessage 过来，统一交给 openLink 走系统浏览器
+  addEventListener('message', (e) => {
+    if (e.origin !== location.origin) return
+    const m = e.data
+    if (m && m.type === 'dsh:open-link' && typeof m.url === 'string') openLink(m.url)
+  })
   addEventListener('hashchange', render)
   boot()
   setTimeout(() => { if (!state.catalog?.version || state.catalog.version === '-') boot() }, 2500)

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI快手信息源 - {{DATE}}</title>
+<title>快手爆款日报 - {{DATE}}</title>
 
 <!-- Fonts: Archivo Black (display) + Space Grotesk (body) -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -368,7 +368,7 @@ body {
 }
 
 /* ═══════════════════════════════════════════════
-   INTELLIGENCE SECTION — AI情报洞察
+   INTELLIGENCE SECTION — 情报洞察
    ═══════════════════════════════════════════════ */
 .intelligence-section {
     max-width: 1200px;
@@ -670,7 +670,7 @@ body {
 
 <!-- HEADER -->
 <header class="report-header">
-    <h1>AI快手信息源</h1>
+    <h1>快手爆款日报</h1>
     <p class="subtitle">每日热门内容聚类 · 播放量靠前的 AI 爆款一网打尽</p>
 
     <!-- 大日期 + 前后切换 -->
@@ -717,7 +717,7 @@ body {
 <!-- FOOTER -->
 <footer class="report-footer">
     <p>Generated at {{TIMESTAMP}}</p>
-    <p class="powered">Powered by AI快手信息源 Skill</p>
+    <p class="powered">Powered by 快手爆款日报 Skill</p>
 </footer>
 
 <!-- SCRIPTS -->
@@ -776,7 +776,7 @@ body {
         var m = String(d.getMonth() + 1).padStart(2, '0');
         var day = String(d.getDate()).padStart(2, '0');
         var newDate = y + '-' + m + '-' + day;
-        var newFile = 'AI快手日报_' + newDate + '.html';
+        var newFile = '快手爆款日报_' + newDate + '.html';
         window.location.href = newFile;
     }
 
