@@ -250,11 +250,11 @@
     const kws = c.default_keywords || []
     return `
       <header class="head">
-        <span class="eyebrow">KUAISHOU AI DAILY</span>
+        <span class="eyebrow">KUAISHOU VIRAL DAILY</span>
         <div class="head-row">
           <h1>快手<strong>爆款日报</strong></h1>
         </div>
-        <p>多关键词批量扫描快手 AI 创作内容，按播放量筛选爆款、六步智能聚类，含情报洞察（热度TOP/起量信号/核心达人/调查方向）。数据每日 15 点更新前一天（最新可查 ${esc(c.latest_available_date?.date || '—')}）。RedFox API Key ${c.has_key ? '已配置' : '未配置'}。</p>
+        <p>多关键词批量扫描快手热门作品（默认 AI 词表，可换任意关键词），按播放量筛选爆款、六步智能聚类，含情报洞察（热度TOP/起量信号/核心达人/调查方向）。数据每日 15 点更新前一天（最新可查 ${esc(c.latest_available_date?.date || '—')}）。RedFox API Key ${c.has_key ? '已配置' : '未配置'}。</p>
       </header>
       ${!c.has_key ? `<div class="empty" style="margin-bottom:var(--sp-6);padding:var(--sp-4) var(--sp-5);text-align:left"><div class="e-title">🔑 还没有配置 RedFox API Key</div><p>到<a href="#/settings">「设置」</a>页填写（ak_ 开头，<a href="https://www.redfox.hk/login" target="_blank" rel="noreferrer">红狐 hub 获取 ↗</a>）。</p></div>` : ''}
       <section class="sec" style="margin-top:0">
@@ -399,7 +399,7 @@
       </div>
       ${clusters.length ? `<div class="dcards">${clusters.map((c, i) => clusterCard(c, i)).join('')}</div>
       <div class="sec" style="margin-top:var(--sp-8)">
-        <div class="sec-head"><span class="num">🧠</span><h2>AI 情报洞察</h2></div>
+        <div class="sec-head"><span class="num">🧠</span><h2>情报洞察</h2></div>
         ${intelBlocks(data.briefing)}
       </div>`
       : '<div class="empty"><div class="e-title">该日报没有作品</div><p>换关键词或日期重新生成。</p></div>'}`
