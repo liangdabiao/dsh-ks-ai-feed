@@ -3,6 +3,7 @@
 DeepSeek Harness（dsh）插件：**多关键词批量扫描快手 AI 创作内容，六步智能聚类生成深色快手橙 HTML 日报 + AI 情报洞察**。15 点日期规则、7 关键词一次批量请求（减少 85%+ API 调用）、起量信号/核心达人/调查方向，侧栏看板。
 
 移植自 [redfox-data/redfox-community](https://github.com/redfox-data/redfox-community) 的 `skills/ks-ai-feed`（Python 全量重写为 Node 原生，**零 Python 依赖**；上游 report_template.html 深色模板原样复用）。
+<img width="2462" height="1344" alt="image" src="https://github.com/user-attachments/assets/7f5ae64d-8851-427e-9586-d643415336f8" />
 
 ## 功能
 
