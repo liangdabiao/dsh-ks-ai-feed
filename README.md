@@ -5,6 +5,12 @@ DeepSeek Harness（dsh）插件：**多关键词批量扫描快手 AI 创作内�
 移植自 [redfox-data/redfox-community](https://github.com/redfox-data/redfox-community) 的 `skills/ks-ai-feed`（Python 全量重写为 Node 原生，**零 Python 依赖**；上游 report_template.html 深色模板原样复用）。
 <img width="2462" height="1344" alt="image" src="https://github.com/user-attachments/assets/7f5ae64d-8851-427e-9586-d643415336f8" />
 
+## 安装
+
+```bash
+dsh plugin --profile web add https://github.com/liangdabiao/dsh-ks-ai-feed
+```
+
 ## 功能
 
 - 🔥 **爆款发现**：`keywords` 数组一次传入所有关键词（默认 AI,人工智能,大模型,GPT,Agent,AI绘画,AI教程），pageSize 200、photoId 去重、最多 10 页
